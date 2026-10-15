@@ -197,7 +197,7 @@ install_V2bX() {
     mkdir -p "$DIR" "$CONF"
     # only the program lives here: what upstream's installer copied next to it (and what an
     # interrupted update left) goes, so nothing piles up from update to update
-    for f in README.md LICENSE config.json dns.json route.json custom_outbound.json custom_inbound.json geoip.dat geosite.dat V2bX.old V2bX.new V2bX.update-failed; do
+    for f in README.md LICENSE config.json dns.json route.json custom_outbound.json custom_inbound.json geoip.dat geosite.dat V2bX.old V2bX.new V2bX.update; do
         rm -f "$DIR/$f"
     done
     rm -rf "$DIR"/.update-*

@@ -4,6 +4,6 @@ package upgrade
 
 import "errors"
 
-func restart(string) error {
+var restart = func(string) error {
 	return errors.New("restarting in place needs Linux")
 }

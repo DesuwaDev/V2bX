@@ -40,10 +40,13 @@ func init() {
 
 func serverHandle(_ *cobra.Command, _ []string) {
 	showVersion()
+	// every request to the panel names this build (api/panel)
+	panel.ProgramVersion = version
 	c := conf.New()
 	err := c.LoadFromPath(config)
 	if err != nil {
 		log.WithField("err", err).Error("Load config file failed")
+		module.Started(err)
 		return
 	}
 	switch c.LogConfig.Level {
@@ -64,8 +67,6 @@ func serverHandle(_ *cobra.Command, _ []string) {
 		log.SetOutput(f)
 	}
 	limiter.Init()
-	// every request to the panel names this build (api/panel)
-	panel.ProgramVersion = version
 	log.Info("Start V2bX...")
 	vc, err := vCore.NewCore(c.CoresConfig)
 	if err != nil {
