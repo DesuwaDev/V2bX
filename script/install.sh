@@ -171,13 +171,56 @@ latest_version() {
     echo "${url##*/}"
 }
 
-install_V2bX() {
-    local version=$1
-    if [[ -z $version ]]; then
-        version=$(latest_version) || fail "获取最新版本失败，请确认服务器能访问 GitHub，或指定版本号"
-    fi
-    echo -e "开始安装 V2bX ${green}${version}${plain}（${REPO}）"
+# releases are YYYYMMDD-<commit>: the date orders them
+release_date() {
+    [[ $1 =~ ^([0-9]{8})-[0-9a-f]{7,}$ ]] && echo "${BASH_REMATCH[1]}"
+}
 
+# what this run does, from what is there now ($current, the installed program's version if it
+# runs) and the release to put in place: install (nothing there), replace (the official V2bX, or a
+# build of its own), update, roll back, or install the same release again
+mode_of() {
+    local current=$1 version=$2 date
+    date=$(release_date "$version")
+    if [[ ! -f $DIR/V2bX ]]; then
+        echo install
+    elif [[ -z $(release_date "$current") ]]; then
+        echo replace
+    elif [[ $current == "$version" ]]; then
+        echo reinstall
+    elif [[ -n $date && $date < $(release_date "$current") ]]; then
+        echo rollback
+    else
+        echo update
+    fi
+}
+
+announce() {
+    case $mode in
+        install) echo -e "${green}开始安装${plain} V2bX ${green}${version}${plain}（${REPO}）" ;;
+        replace)
+            local was="原来的 V2bX ${current:-（无法运行）}"
+            [[ $current =~ ^v[0-9] ]] && was="官方 V2bX ${current}"
+            echo -e "${green}开始替换${plain}：${was} → ${green}${version}${plain}（${REPO}），配置原样保留"
+            ;;
+        update) echo -e "${green}开始更新${plain}：V2bX ${current} → ${green}${version}${plain}" ;;
+        rollback) echo -e "${yellow}开始回退${plain}：V2bX ${current} → ${green}${version}${plain}" ;;
+        reinstall) echo -e "已是 V2bX ${green}${version}${plain}，${green}开始重新安装${plain}" ;;
+    esac
+}
+
+# what a run that went well says at its end
+done_text() {
+    case $mode in
+        replace) echo "已替换为 V2bX ${version} 并启动，配置未改动" ;;
+        update) echo "已更新到 V2bX ${version} 并启动" ;;
+        rollback) echo "已回退到 V2bX ${version} 并启动" ;;
+        reinstall) echo "已重新安装 V2bX ${version} 并启动" ;;
+        *) echo "V2bX ${version} 已启动" ;;
+    esac
+}
+
+install_V2bX() {
     tmp=$(mktemp -d) || fail "无法创建临时目录"
     trap 'rm -rf "$tmp"' EXIT
     local url="https://github.com/$REPO/releases/download/$version/V2bX-linux-$arch.zip"
@@ -225,7 +268,7 @@ install_V2bX() {
         service_start
         if service_healthy; then
             rm -f "$DIR/V2bX.bak"
-            echo -e "${green}V2bX ${version} 已启动${plain}"
+            echo -e "${green}$(done_text)${plain}"
         elif [[ $backup == true ]]; then
             echo -e "${red}新程序没能稳定运行，已换回原来的程序${plain}"
             service_stop
@@ -283,6 +326,23 @@ install_V2bX() {
     fi
 }
 
-echo -e "${green}开始安装${plain}"
-install_base
-install_V2bX "$1"
+# what is there now: nothing, the official V2bX (or a build of its own), or a release of this one
+current=""
+if [[ -f $DIR/V2bX ]]; then
+    current=$("$DIR/V2bX" version 2>/dev/null | grep -o 'V2bX [^ ]*' | head -1 | cut -d' ' -f2)
+fi
+# the release to put in place: the one asked for, or the latest. curl fetched this script, so it is
+# usually there; what else the install needs comes once the run has said what it does
+based=false
+if ! command -v curl >/dev/null 2>&1; then
+    install_base
+    based=true
+fi
+version=$1
+if [[ -z $version ]]; then
+    version=$(latest_version) || fail "获取最新版本失败，请确认服务器能访问 GitHub，或指定版本号"
+fi
+mode=$(mode_of "$current" "$version")
+announce
+[[ $based == true ]] || install_base
+install_V2bX
