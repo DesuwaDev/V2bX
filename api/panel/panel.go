@@ -35,6 +35,7 @@ var (
 	hooksMu  sync.RWMutex
 	headers  []func() map[string]string
 	answered []func(nodeID int, header http.Header)
+	usersGot []func(nodeID int, users []UserInfo)
 )
 
 // AddHeaders has every request to the panel carry the headers f gives at that moment (module/).
@@ -49,6 +50,22 @@ func OnAnswer(f func(nodeID int, header http.Header)) {
 	hooksMu.Lock()
 	defer hooksMu.Unlock()
 	answered = append(answered, f)
+}
+
+// OnUsers hands f each user list the panel sends a node, before the node serves it (module/).
+func OnUsers(f func(nodeID int, users []UserInfo)) {
+	hooksMu.Lock()
+	defer hooksMu.Unlock()
+	usersGot = append(usersGot, f)
+}
+
+func gotUsers(nodeID int, users []UserInfo) {
+	hooksMu.RLock()
+	hooks := append([]func(int, []UserInfo){}, usersGot...)
+	hooksMu.RUnlock()
+	for _, f := range hooks {
+		f(nodeID, users)
+	}
 }
 
 func answer(nodeID int, header http.Header) {

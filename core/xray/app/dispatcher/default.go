@@ -109,18 +109,23 @@ type DefaultDispatcher struct {
 	fdns         dns.FakeDNSEngine
 	Counter      sync.Map
 	LinkManagers sync.Map // map[string]*LinkManager
-	// inbound tag -> outbound tag, for the nodes a compiled-in feature routes itself (core/xray/ext.go)
-	inboundRoutes sync.Map
+	// inbound tag -> UserRoute, for the nodes a compiled-in feature routes by user (core/xray/ext.go)
+	userRoutes sync.Map
 }
 
-// SetInboundRoute sends every connection of an inbound to one outbound, ahead of any routing rule.
-func (d *DefaultDispatcher) SetInboundRoute(inbound, outbound string) {
-	d.inboundRoutes.Store(inbound, outbound)
+// UserRoute is how a compiled-in feature sends an inbound's users: for a user (as the core names
+// one, "tag|uuid") the outbound its connections go to, and whether the feature takes the user at
+// all. A user it takes with no outbound, or one that isn't there, is refused.
+type UserRoute func(user string) (outbound string, taken bool)
+
+// SetUserRoute has route pick the way out of an inbound's users, ahead of any routing rule.
+func (d *DefaultDispatcher) SetUserRoute(inbound string, route UserRoute) {
+	d.userRoutes.Store(inbound, route)
 }
 
-// ClearInboundRoute gives an inbound back to the routing rules.
-func (d *DefaultDispatcher) ClearInboundRoute(inbound string) {
-	d.inboundRoutes.Delete(inbound)
+// ClearUserRoute gives an inbound back to the routing rules.
+func (d *DefaultDispatcher) ClearUserRoute(inbound string) {
+	d.userRoutes.Delete(inbound)
 }
 
 func init() {
@@ -579,17 +584,28 @@ func (d *DefaultDispatcher) routedDispatch(ctx context.Context, link *transport.
 	routingLink := routing_session.AsRoutingContext(ctx)
 	inTag := routingLink.GetInboundTag()
 	isPickRoute := 0
-	if routed, ok := d.inboundRoutes.Load(inTag); ok {
-		// the node's own way out: never the shared rules, and nothing at all if it isn't there
-		if h := d.ohm.GetHandler(routed.(string)); h != nil {
+	taken := false
+	if route, ok := d.userRoutes.Load(inTag); ok {
+		user := ""
+		if sessionInbound != nil && sessionInbound.User != nil {
+			user = sessionInbound.User.Email
+		}
+		var outTag string
+		if outTag, taken = route.(UserRoute)(user); taken {
+			// the user's own way out: never the shared rules, and nothing at all if it isn't there
+			h := d.ohm.GetHandler(outTag)
+			if outTag == "" || h == nil {
+				errors.LogError(ctx, "user ", user, " of inbound [", inTag, "] refused: no way out [", outTag, "]")
+				common.Close(link.Writer)
+				common.Interrupt(link.Reader)
+				return
+			}
 			isPickRoute = 1
 			handler = h
-		} else {
-			errors.LogError(ctx, "outbound [", routed, "] of inbound [", inTag, "] not found")
-			common.Close(link.Writer)
-			common.Interrupt(link.Reader)
-			return
 		}
+	}
+	if taken {
+		// routed above
 	} else if forcedOutboundTag := session.GetForcedOutboundTagFromContext(ctx); forcedOutboundTag != "" {
 		ctx = session.SetForcedOutboundTagToContext(ctx, "")
 		if h := d.ohm.GetHandler(forcedOutboundTag); h != nil {

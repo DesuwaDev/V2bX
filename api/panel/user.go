@@ -20,6 +20,9 @@ type UserInfo struct {
 	Uuid        string `json:"uuid" msgpack:"uuid"`
 	SpeedLimit  int    `json:"speed_limit" msgpack:"speed_limit"`
 	DeviceLimit int    `json:"device_limit" msgpack:"device_limit"`
+	// Chain is the chain (module/chain) this account is a user's key to on the node; 0 for a
+	// user's own account
+	Chain int `json:"chain,omitempty" msgpack:"chain,omitempty"`
 }
 
 type UserListBody struct {
@@ -87,6 +90,7 @@ func (c *Client) GetUserList() ([]UserInfo, error) {
 		}
 	}
 	c.userEtag = r.Header().Get("ETag")
+	gotUsers(c.NodeId, userlist.Users)
 	return userlist.Users, nil
 }
 

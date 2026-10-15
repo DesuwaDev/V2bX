@@ -4,59 +4,53 @@ import (
 	"slices"
 
 	"github.com/InazumaV/V2bX/api/panel"
+	"github.com/InazumaV/V2bX/core/xray/app/dispatcher"
 	log "github.com/sirupsen/logrus"
 	"github.com/xtls/xray-core/core"
-	coreConf "github.com/xtls/xray-core/infra/conf"
 )
 
-// NodeOutbound lets a compiled-in feature (module/) give a node its own way out. Outbounds returns
-// the handlers to add, in order, and the tag of the one every connection of the node goes to; an
-// empty tag leaves the node on the routing rules.
-type NodeOutbound interface {
-	Outbounds(tag string, info *panel.NodeInfo) (handlers []*core.OutboundHandlerConfig, exit string)
+// NodeRoute lets a compiled-in feature (module/) send some of a node's users their own way. Route
+// returns the outbounds to add, in order, and pick: for a user (as the core names one, "tag|uuid")
+// the outbound its connections go to, and whether the feature takes the user at all. A user it
+// doesn't take stays on the routing rules; one it takes with no outbound is refused. A nil pick
+// leaves the whole node on the routing rules.
+type NodeRoute interface {
+	Route(tag string, info *panel.NodeInfo) (handlers []*core.OutboundHandlerConfig, pick dispatcher.UserRoute)
 }
 
-var nodeOutbounds []NodeOutbound
+var nodeRoutes []NodeRoute
 
-// RegisterNodeOutbound adds a feature's outbounds; called from the feature's init().
-func RegisterNodeOutbound(o NodeOutbound) {
-	nodeOutbounds = append(nodeOutbounds, o)
+// RegisterNodeRoute adds a feature's routes; called from the feature's init().
+func RegisterNodeRoute(r NodeRoute) {
+	nodeRoutes = append(nodeRoutes, r)
 }
 
-// Refusal is an outbound that drops everything, for a node whose own way out can't be had.
-func Refusal(tag string) *core.OutboundHandlerConfig {
-	h, err := (&coreConf.OutboundDetourConfig{Protocol: "blackhole", Tag: tag + "/refused"}).Build()
-	if err != nil {
-		panic(err) // a bare blackhole always builds
-	}
-	return h
-}
-
-// claim adds the outbounds a feature gives the node and sends the node to its exit, before the
-// node's inbound exists. A node a feature claimed never falls back to the routing rules: if its
-// outbounds can't be added, it gets one that refuses everything.
+// claim adds the outbounds a feature gives the node and has it pick the way out of the node's
+// users, before the node's inbound exists. If its outbounds can't be added, every user the feature
+// takes is refused: none of them falls back to the routing rules.
 func (c *Xray) claim(tag string, info *panel.NodeInfo) error {
-	for _, o := range nodeOutbounds {
-		handlers, exit := o.Outbounds(tag, info)
-		if exit == "" {
+	for _, r := range nodeRoutes {
+		handlers, pick := r.Route(tag, info)
+		if pick == nil {
 			continue
 		}
 		var added []string
 		for _, h := range handlers {
 			if err := c.addOutbound(h); err != nil {
-				log.WithField("tag", tag).WithField("err", err).Error("Add node outbound failed, the node refuses every connection")
+				log.WithField("tag", tag).WithField("err", err).Error("Add node outbound failed, the users it was for are refused")
 				c.dropOutbounds(added)
-				refusal := Refusal(tag)
-				if err := c.addOutbound(refusal); err != nil {
-					return err
+				added = nil
+				takes := pick
+				pick = func(user string) (string, bool) {
+					_, taken := takes(user)
+					return "", taken
 				}
-				added, exit = []string{refusal.Tag}, refusal.Tag
 				break
 			}
 			added = append(added, h.Tag)
 		}
 		c.claimed.Store(tag, added)
-		c.dispatcher.SetInboundRoute(tag, exit)
+		c.dispatcher.SetUserRoute(tag, pick)
 		return nil
 	}
 	return nil
@@ -64,7 +58,7 @@ func (c *Xray) claim(tag string, info *panel.NodeInfo) error {
 
 // release gives the node's inbound back to the routing rules and removes its outbounds, last first
 func (c *Xray) release(tag string) {
-	c.dispatcher.ClearInboundRoute(tag)
+	c.dispatcher.ClearUserRoute(tag)
 	if added, ok := c.claimed.LoadAndDelete(tag); ok {
 		c.dropOutbounds(added.([]string))
 	}
