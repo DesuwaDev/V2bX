@@ -163,6 +163,67 @@ EOF
     fi
 }
 
+# a download's bar: solid blocks where the system speaks UTF-8 (as apt draws it), # elsewhere
+if [[ $(locale charmap 2>/dev/null) == UTF-8 || ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} =~ [Uu][Tt][Ff]-?8 ]]; then
+    bar_done="█"
+    bar_todo="░"
+else
+    bar_done="#"
+    bar_todo="."
+fi
+
+file_size() {
+    stat -c %s "$1" 2>/dev/null || echo 0
+}
+
+megabytes() {
+    awk -v b="$1" 'BEGIN { printf "%.1f", b / 1048576 }'
+}
+
+# one line, redrawn: [█████░░░░░]  45%  13.6/30.3 MB, as wide as the terminal allows
+progress() {
+    local got=$1 total=$2 cols width filled pct bar="" i
+    if [[ -z $total || $total -le 0 ]]; then
+        printf '\r  %s MB' "$(megabytes "$got")" >&2
+        return
+    fi
+    ((got > total)) && got=$total
+    cols=$(tput cols 2>/dev/null)
+    [[ $cols =~ ^[0-9]+$ ]] || cols=80
+    width=$((cols - 30))
+    ((width > 50)) && width=50
+    ((width < 10)) && width=10
+    pct=$((got * 100 / total))
+    filled=$((width * got / total))
+    for ((i = 0; i < filled; i++)); do bar+=$bar_done; done
+    for (( ; i < width; i++)); do bar+=$bar_todo; done
+    printf '\r  [%s] %3d%%  %s/%s MB' "$bar" "$pct" "$(megabytes "$got")" "$(megabytes "$total")" >&2
+}
+
+# downloads url $1 into $2: with a bar on a terminal, quietly into a log or a pipe
+download() {
+    local url=$1 out=$2 total pid code
+    if [[ ! -t 2 ]]; then
+        curl -fsSL --retry 3 -o "$out" "$url"
+        return
+    fi
+    # the size, from the last answer of the redirects (GitHub sends releases on to its file host)
+    total=$(curl -fsSLI --retry 3 "$url" 2>/dev/null | tr -d '\r' | awk 'tolower($1) == "content-length:" { n = $2 } END { print n }')
+    curl -fsSL --retry 3 -o "$out" "$url" &
+    pid=$!
+    while kill -0 "$pid" 2>/dev/null; do
+        progress "$(file_size "$out")" "$total"
+        sleep 0.2
+    done
+    wait "$pid"
+    code=$?
+    if [[ $code == 0 ]]; then
+        progress "$(file_size "$out")" "$(file_size "$out")"
+    fi
+    echo >&2
+    return $code
+}
+
 latest_version() {
     # the release page redirects to the latest tag (no API, no rate limit)
     local url
@@ -224,7 +285,7 @@ install_V2bX() {
     tmp=$(mktemp -d) || fail "无法创建临时目录"
     trap 'rm -rf "$tmp"' EXIT
     local url="https://github.com/$REPO/releases/download/$version/V2bX-linux-$arch.zip"
-    curl -fL --retry 3 --progress-bar -o "$tmp/V2bX.zip" "$url" || fail "下载失败：$url"
+    download "$url" "$tmp/V2bX.zip" || fail "下载失败：$url"
     curl -fsL --retry 3 -o "$tmp/V2bX.zip.dgst" "$url.dgst" || fail "下载校验文件失败：$url.dgst"
     local expected actual
     expected=$(grep -iE '^SHA2?-?256' "$tmp/V2bX.zip.dgst" | awk '{print $NF}' | tr 'A-F' 'a-f')
