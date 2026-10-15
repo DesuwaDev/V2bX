@@ -254,27 +254,27 @@ install_V2bX() {
         echo -e "${yellow}管理脚本下载失败，V2bX 命令保持原样${plain}"
     fi
 
-    echo -e ""
-    echo "V2bX 管理脚本使用方法 (兼容使用V2bX执行，大小写不敏感): "
-    echo "------------------------------------------"
-    echo "V2bX              - 显示管理菜单 (功能更多)"
-    echo "V2bX start        - 启动 V2bX"
-    echo "V2bX stop         - 停止 V2bX"
-    echo "V2bX restart      - 重启 V2bX"
-    echo "V2bX status       - 查看 V2bX 状态"
-    echo "V2bX enable       - 设置 V2bX 开机自启"
-    echo "V2bX disable      - 取消 V2bX 开机自启"
-    echo "V2bX log          - 查看 V2bX 日志"
-    echo "V2bX x25519       - 生成 x25519 密钥"
-    echo "V2bX generate     - 生成 V2bX 配置文件"
-    echo "V2bX update       - 更新 V2bX"
-    echo "V2bX update x.x.x - 更新 V2bX 指定版本"
-    echo "V2bX install      - 安装 V2bX"
-    echo "V2bX uninstall    - 卸载 V2bX"
-    echo "V2bX version      - 查看 V2bX 版本"
-    echo "------------------------------------------"
-
+    # the commands are worth a word on a first install only: an update or replacement says what it did and stops
     if [[ $first_install == true ]]; then
+        echo -e ""
+        echo "V2bX 管理脚本使用方法 (兼容使用V2bX执行，大小写不敏感): "
+        echo "------------------------------------------"
+        echo "V2bX              - 显示管理菜单 (功能更多)"
+        echo "V2bX start        - 启动 V2bX"
+        echo "V2bX stop         - 停止 V2bX"
+        echo "V2bX restart      - 重启 V2bX"
+        echo "V2bX status       - 查看 V2bX 状态"
+        echo "V2bX enable       - 设置 V2bX 开机自启"
+        echo "V2bX disable      - 取消 V2bX 开机自启"
+        echo "V2bX log          - 查看 V2bX 日志"
+        echo "V2bX x25519       - 生成 x25519 密钥"
+        echo "V2bX generate     - 生成 V2bX 配置文件"
+        echo "V2bX update       - 更新 V2bX"
+        echo "V2bX update x.x.x - 更新 V2bX 指定版本"
+        echo "V2bX install      - 安装 V2bX"
+        echo "V2bX uninstall    - 卸载 V2bX"
+        echo "V2bX version      - 查看 V2bX 版本"
+        echo "------------------------------------------"
         read -rp "检测到你为第一次安装V2bX,是否自动直接生成配置文件？(y/n): " if_generate
         if [[ $if_generate == [Yy] ]]; then
             curl -fsSL -o "$tmp/initconfig.sh" "https://raw.githubusercontent.com/$REPO/$SCRIPT_REF/script/initconfig.sh" &&
