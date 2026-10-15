@@ -10,6 +10,7 @@ import (
 	"github.com/InazumaV/V2bX/conf"
 	vCore "github.com/InazumaV/V2bX/core"
 	"github.com/InazumaV/V2bX/limiter"
+	"github.com/InazumaV/V2bX/module"
 	"github.com/InazumaV/V2bX/node"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -69,11 +70,13 @@ func serverHandle(_ *cobra.Command, _ []string) {
 	vc, err := vCore.NewCore(c.CoresConfig)
 	if err != nil {
 		log.WithField("err", err).Error("new core failed")
+		module.Started(err)
 		return
 	}
 	err = vc.Start()
 	if err != nil {
 		log.WithField("err", err).Error("Start core failed")
+		module.Started(err)
 		return
 	}
 	defer vc.Close()
@@ -82,9 +85,11 @@ func serverHandle(_ *cobra.Command, _ []string) {
 	err = nodes.Start(c.NodeConfig, vc)
 	if err != nil {
 		log.WithField("err", err).Error("Run nodes failed")
+		module.Started(err)
 		return
 	}
 	log.Info("Nodes started")
+	module.Started(nil)
 	xdns := os.Getenv("XRAY_DNS_PATH")
 	sdns := os.Getenv("SING_DNS_PATH")
 	if watch {

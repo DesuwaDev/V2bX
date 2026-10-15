@@ -160,6 +160,10 @@ func (c *Client) GetNodeInfo() (node *NodeInfo, err error) {
 		SetHeader("If-None-Match", c.nodeEtag).
 		ForceContentType("application/json").
 		Get(path)
+	if err == nil {
+		// the features' part of the answer (OnAnswer), unchanged config or not
+		answer(c.NodeId, r.Header())
+	}
 
 	if r.StatusCode() == 304 {
 		return nil, nil

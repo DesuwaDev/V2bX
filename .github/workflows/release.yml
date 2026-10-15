@@ -16,7 +16,7 @@ permissions:
 
 env:
   # every core and feature upstream builds, plus this fork's modules (module/)
-  TAGS: sing xray hysteria2 with_quic with_grpc with_utls with_wireguard with_acme with_gvisor chain
+  TAGS: sing xray hysteria2 with_quic with_grpc with_utls with_wireguard with_acme with_gvisor chain upgrade
 
 jobs:
   build:

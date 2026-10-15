@@ -17,6 +17,10 @@ A V2board node server based on multi core, modified from XrayR.
 * **链式代理**（`chain` 模块）：面板把节点设成"入口"后，它的连接依次经过面板指定的其它节点再出去，
   互联网看到的是最后一个节点的地址。只有入口节点需要本程序，经过的节点照常对接即可。
   出错时一律拒绝连接，绝不从入口直接出去。
+* **在线更新**（`upgrade` 模块）：管理员在面板上点「更新」，节点才从本仓库的 Release 下载新版本（不会自己更新），
+  校验 SHA-256、试运行后原地替换并重启；新版本起不来就换回旧版本并告诉面板原因。不留下任何旧文件：
+  下载的文件在重启前删掉，旧程序在新程序跑起来后删掉。只认本仓库的发布（或 `V2BX_RELEASES` 指向的镜像），
+  面板只能选版本，不能让节点去下载别的程序。
 * 每次请求面板都带上程序版本、内核和已编入的模块（`X-V2bX-*` 请求头），面板据此只要求节点做它能做的事。
 * 多内核时自动选内核的结果固定（原来每次启动可能不同）。
 
@@ -63,8 +67,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/DesuwaDev/V2bX/dev_new/script/
 ```
 
 装在官方 V2bX（V2bX-script）的同一位置，`/etc/V2bX` 的配置原样保留，之后 `V2bX update` 也从本仓库更新。
-新程序先下载到临时目录、校验 SHA-256、试运行，才替换；原程序留作 `/usr/local/V2bX/V2bX.bak`，
-新程序没能稳定运行时自动换回。
+新程序先下载到临时目录、校验 SHA-256、试运行，才替换；新程序没能稳定运行时自动换回原程序，
+稳定运行后原程序删掉，不留备份。
 
 ### 手动安装
 
@@ -72,8 +76,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/DesuwaDev/V2bX/dev_new/script/
 
 ## 构建
 ``` bash
-# 通过-tags选项指定要编译的内核， 可选 xray， sing, hysteria2；以及模块，可选 chain
-GOEXPERIMENT=jsonv2 go build -v -o build_assets/V2bX -tags "sing xray hysteria2 with_quic with_grpc with_utls with_wireguard with_acme with_gvisor chain" -trimpath -ldflags "-X 'github.com/InazumaV/V2bX/cmd.version=$version' -s -w -buildid="
+# 通过-tags选项指定要编译的内核， 可选 xray， sing, hysteria2；以及模块，可选 chain, upgrade
+GOEXPERIMENT=jsonv2 go build -v -o build_assets/V2bX -tags "sing xray hysteria2 with_quic with_grpc with_utls with_wireguard with_acme with_gvisor chain upgrade" -trimpath -ldflags "-X 'github.com/InazumaV/V2bX/cmd.version=$version' -s -w -buildid="
 ```
 
 ## 配置文件及详细使用教程

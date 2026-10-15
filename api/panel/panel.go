@@ -1,11 +1,15 @@
 package panel
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -18,6 +22,43 @@ import (
 
 // ProgramVersion is this build's version, named in every request (cmd sets it)
 var ProgramVersion = "dev"
+
+// instance names this run of the program in every request: one program serves several nodes,
+// and the panel tells which run together by it
+var instance = func() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}()
+
+var (
+	hooksMu  sync.RWMutex
+	headers  []func() map[string]string
+	answered []func(nodeID int, header http.Header)
+)
+
+// AddHeaders has every request to the panel carry the headers f gives at that moment (module/).
+func AddHeaders(f func() map[string]string) {
+	hooksMu.Lock()
+	defer hooksMu.Unlock()
+	headers = append(headers, f)
+}
+
+// OnAnswer hands f the headers of each answer to a node's config request (module/).
+func OnAnswer(f func(nodeID int, header http.Header)) {
+	hooksMu.Lock()
+	defer hooksMu.Unlock()
+	answered = append(answered, f)
+}
+
+func answer(nodeID int, header http.Header) {
+	hooksMu.RLock()
+	hooks := append([]func(int, http.Header){}, answered...)
+	hooksMu.RUnlock()
+	for _, f := range hooks {
+		f(nodeID, header)
+	}
+}
 
 type Client struct {
 	client           *resty.Client
@@ -57,6 +98,17 @@ func New(c *conf.ApiConfig) (*Client, error) {
 		}
 	})
 	client.SetBaseURL(c.APIHost)
+	client.OnBeforeRequest(func(_ *resty.Client, r *resty.Request) error {
+		hooksMu.RLock()
+		sources := append([]func() map[string]string{}, headers...)
+		hooksMu.RUnlock()
+		for _, f := range sources {
+			for k, v := range f() {
+				r.SetHeader(k, v)
+			}
+		}
+		return nil
+	})
 	// Check node type
 	c.NodeType = strings.ToLower(c.NodeType)
 	switch c.NodeType {
@@ -100,5 +152,6 @@ func (c *Client) Announce(core string, features []string) {
 		"X-V2bX-Version":  ProgramVersion,
 		"X-V2bX-Core":     core,
 		"X-V2bX-Features": strings.Join(features, ","),
+		"X-V2bX-Instance": instance,
 	})
 }

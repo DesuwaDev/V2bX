@@ -6,8 +6,9 @@
 #
 # It goes where V2bX-script puts V2bX (/usr/local/V2bX, the V2bX service, the V2bX menu command)
 # and keeps /etc/V2bX as it is. The new program is downloaded to a temporary directory, its SHA-256
-# checked and run once before anything is replaced; the old one is kept as V2bX.bak and put back
-# if the service doesn't stay up with the new one. Nothing is reported anywhere.
+# checked and run once before anything is replaced; the old one is put back if the service doesn't
+# stay up with the new one, and removed once it does. Only the program stays in /usr/local/V2bX,
+# so nothing piles up from update to update. Nothing is reported anywhere.
 #
 # Adapted from https://github.com/wyx2685/V2bX-script (MPL-2.0).
 
@@ -194,15 +195,21 @@ install_V2bX() {
     service_running && was_running=true
     service_stop
     mkdir -p "$DIR" "$CONF"
+    # only the program lives here: what upstream's installer copied next to it (and what an
+    # interrupted update left) goes, so nothing piles up from update to update
+    for f in README.md LICENSE config.json dns.json route.json custom_outbound.json custom_inbound.json geoip.dat geosite.dat V2bX.old V2bX.new V2bX.update-failed; do
+        rm -f "$DIR/$f"
+    done
+    rm -rf "$DIR"/.update-*
+    # the running program is kept only until the new one has proved itself
     local backup=false
     if [[ -f $DIR/V2bX ]]; then
-        cp -f "$DIR/V2bX" "$DIR/V2bX.bak" && backup=true
+        mv -f "$DIR/V2bX" "$DIR/V2bX.bak" && backup=true
     fi
-    # the files of the zip next to the program, then the program itself in one move
-    for f in "$tmp/pkg"/*; do
-        [[ $(basename "$f") == "V2bX" ]] || cp -f "$f" "$DIR/"
-    done
-    cp -f "$tmp/pkg/V2bX" "$DIR/V2bX.new" && mv -f "$DIR/V2bX.new" "$DIR/V2bX" || fail "替换程序失败"
+    cp -f "$tmp/pkg/V2bX" "$DIR/V2bX.new" && mv -f "$DIR/V2bX.new" "$DIR/V2bX" || {
+        [[ $backup == true ]] && mv -f "$DIR/V2bX.bak" "$DIR/V2bX"
+        fail "替换程序失败"
+    }
     cp -f "$tmp/pkg/geoip.dat" "$tmp/pkg/geosite.dat" "$CONF/"
     for f in dns.json route.json custom_outbound.json custom_inbound.json; do
         [[ -f $CONF/$f ]] || cp "$tmp/pkg/$f" "$CONF/"
@@ -217,6 +224,7 @@ install_V2bX() {
     else
         service_start
         if service_healthy; then
+            rm -f "$DIR/V2bX.bak"
             echo -e "${green}V2bX ${version} 已启动${plain}"
         elif [[ $backup == true ]]; then
             echo -e "${red}新程序没能稳定运行，已换回原来的程序${plain}"
@@ -234,6 +242,8 @@ install_V2bX() {
             [[ $was_running == true ]] && exit 1
         fi
     fi
+    # a first install starts nothing: the old program (if any) isn't needed either
+    rm -f "$DIR/V2bX.bak"
 
     # the menu command, from the same version, so its updates come from here too
     if curl -fsSL -o "$tmp/V2bX.sh" "https://raw.githubusercontent.com/$REPO/$version/script/V2bX.sh" ||

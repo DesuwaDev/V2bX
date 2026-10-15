@@ -45,3 +45,23 @@ func For(core string) []string {
 	slices.Sort(list)
 	return list
 }
+
+var started []func(error)
+
+// OnStarted runs f once the program has (or hasn't) started its nodes: err is why not.
+func OnStarted(f func(err error)) {
+	mu.Lock()
+	defer mu.Unlock()
+	started = append(started, f)
+}
+
+// Started tells the features that the program's nodes are up (err nil) or couldn't start; cmd
+// calls it once per start.
+func Started(err error) {
+	mu.RLock()
+	hooks := append([]func(error){}, started...)
+	mu.RUnlock()
+	for _, f := range hooks {
+		f(err)
+	}
+}
