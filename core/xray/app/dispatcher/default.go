@@ -109,6 +109,18 @@ type DefaultDispatcher struct {
 	fdns         dns.FakeDNSEngine
 	Counter      sync.Map
 	LinkManagers sync.Map // map[string]*LinkManager
+	// inbound tag -> outbound tag, for the nodes a compiled-in feature routes itself (core/xray/ext.go)
+	inboundRoutes sync.Map
+}
+
+// SetInboundRoute sends every connection of an inbound to one outbound, ahead of any routing rule.
+func (d *DefaultDispatcher) SetInboundRoute(inbound, outbound string) {
+	d.inboundRoutes.Store(inbound, outbound)
+}
+
+// ClearInboundRoute gives an inbound back to the routing rules.
+func (d *DefaultDispatcher) ClearInboundRoute(inbound string) {
+	d.inboundRoutes.Delete(inbound)
 }
 
 func init() {
@@ -567,7 +579,18 @@ func (d *DefaultDispatcher) routedDispatch(ctx context.Context, link *transport.
 	routingLink := routing_session.AsRoutingContext(ctx)
 	inTag := routingLink.GetInboundTag()
 	isPickRoute := 0
-	if forcedOutboundTag := session.GetForcedOutboundTagFromContext(ctx); forcedOutboundTag != "" {
+	if routed, ok := d.inboundRoutes.Load(inTag); ok {
+		// the node's own way out: never the shared rules, and nothing at all if it isn't there
+		if h := d.ohm.GetHandler(routed.(string)); h != nil {
+			isPickRoute = 1
+			handler = h
+		} else {
+			errors.LogError(ctx, "outbound [", routed, "] of inbound [", inTag, "] not found")
+			common.Close(link.Writer)
+			common.Interrupt(link.Reader)
+			return
+		}
+	} else if forcedOutboundTag := session.GetForcedOutboundTagFromContext(ctx); forcedOutboundTag != "" {
 		ctx = session.SetForcedOutboundTagToContext(ctx, "")
 		if h := d.ohm.GetHandler(forcedOutboundTag); h != nil {
 			isPickRoute = 1

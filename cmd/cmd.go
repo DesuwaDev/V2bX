@@ -4,6 +4,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	_ "github.com/InazumaV/V2bX/core/imports"
+	_ "github.com/InazumaV/V2bX/module/imports"
 	"github.com/spf13/cobra"
 )
 

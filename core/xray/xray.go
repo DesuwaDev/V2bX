@@ -37,6 +37,8 @@ type Xray struct {
 	dispatcher                *dispatcher.DefaultDispatcher
 	users                     *UserMap
 	nodeReportMinTrafficBytes map[string]int64
+	// the outbounds a feature gave each node it routes itself (ext.go)
+	claimed sync.Map
 }
 
 type UserMap struct {

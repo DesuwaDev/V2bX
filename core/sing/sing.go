@@ -32,6 +32,8 @@ type Sing struct {
 	logFactory                log.Factory
 	users                     *UserMap
 	nodeReportMinTrafficBytes map[string]int64
+	// what a feature that took over a node's routing frees when the node goes (ext.go)
+	releases sync.Map
 }
 
 type UserMap struct {

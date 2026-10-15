@@ -16,6 +16,9 @@ import (
 
 // Panel is the interface for different panel's api.
 
+// ProgramVersion is this build's version, named in every request (cmd sets it)
+var ProgramVersion = "dev"
+
 type Client struct {
 	client           *resty.Client
 	APIHost          string
@@ -36,7 +39,7 @@ func New(c *conf.ApiConfig) (*Client, error) {
 		client = resty.NewWithLocalAddr(&net.TCPAddr{
 			IP: net.ParseIP(c.APISendIP),
 		})
-	} else {	
+	} else {
 		client = resty.New()
 	}
 	client.SetRetryCount(3)
@@ -87,4 +90,15 @@ func New(c *conf.ApiConfig) (*Client, error) {
 		UserList:  &UserListBody{},
 		AliveMap:  &AliveMap{},
 	}, nil
+}
+
+// Announce names, in every request from now on, this build, the core that serves the node and the
+// compiled-in features it has on that core (module/), so the panel asks the node only for what it
+// can do: a feature the panel needs but the node lacks, it handles on its own side.
+func (c *Client) Announce(core string, features []string) {
+	c.client.SetHeaders(map[string]string{
+		"X-V2bX-Version":  ProgramVersion,
+		"X-V2bX-Core":     core,
+		"X-V2bX-Features": strings.Join(features, ","),
+	})
 }

@@ -3,6 +3,8 @@ package core
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 
@@ -66,26 +68,29 @@ func isSupported(protocol string, protocols []string) bool {
 	return false
 }
 
-func (s *Selector) AddNode(tag string, info *panel.NodeInfo, option *conf.Options) error {
-	var core Core
+// pick is the core that serves a node of the given type: by name, by type, or the last one (in name
+// order, so it is always the same one) that supports the node's protocol
+func (s *Selector) pick(nodeType string, option *conf.Options) Core {
 	if len(option.CoreName) > 0 {
-		// use name to select core
-		if c, ok := s.cores[option.CoreName]; ok {
-			core = c
-		}
-	} else {
-		// use type to select core
-		for _, c := range s.cores {
-			if len(option.Core) == 0 {
-				if !isSupported(info.Type, c.Protocols()) {
-					continue
-				}
-			} else if option.Core != c.Type() {
+		return s.cores[option.CoreName]
+	}
+	var core Core
+	for _, name := range slices.Sorted(maps.Keys(s.cores)) {
+		c := s.cores[name]
+		if len(option.Core) == 0 {
+			if !isSupported(nodeType, c.Protocols()) {
 				continue
 			}
-			core = c
+		} else if option.Core != c.Type() {
+			continue
 		}
+		core = c
 	}
+	return core
+}
+
+func (s *Selector) AddNode(tag string, info *panel.NodeInfo, option *conf.Options) error {
+	core := s.pick(info.Type, option)
 	if core == nil {
 		return errors.New("the node type is not support")
 	}

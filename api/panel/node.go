@@ -37,6 +37,10 @@ type NodeInfo struct {
 	Hysteria    *HysteriaNode
 	Hysteria2   *Hysteria2Node
 	Common      *CommonNode
+
+	// Extra holds every top-level field of the panel's answer, for the compiled-in features that
+	// read one of their own (module/)
+	Extra map[string]json.RawMessage
 }
 
 type CommonNode struct {
@@ -187,6 +191,9 @@ func (c *Client) GetNodeInfo() (node *NodeInfo, err error) {
 			DNSMap:  make(map[string]map[string]interface{}),
 			DNSJson: []byte(""),
 		},
+	}
+	if err = json.Unmarshal(r.Body(), &node.Extra); err != nil {
+		return nil, fmt.Errorf("decode node info error: %s", err)
 	}
 	// parse protocol params
 	var cm *CommonNode

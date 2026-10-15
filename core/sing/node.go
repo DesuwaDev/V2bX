@@ -400,10 +400,14 @@ func (b *Sing) AddNode(tag string, info *panel.NodeInfo, config *conf.Options) e
 	if err != nil {
 		return err
 	}
+	router, release := b.routeFor(tag, info)
+	if router == nil {
+		router = b.box.Router()
+	}
 	in := b.box.Inbound()
 	err = in.Create(
 		b.ctx,
-		b.box.Router(),
+		router,
 		b.logFactory.NewLogger(F.ToString("inbound/", c.Type, "[", tag, "]")),
 		tag,
 		c.Type,
@@ -411,7 +415,13 @@ func (b *Sing) AddNode(tag string, info *panel.NodeInfo, config *conf.Options) e
 	)
 
 	if err != nil {
+		if release != nil {
+			release()
+		}
 		return fmt.Errorf("add inbound error: %s", err)
+	}
+	if release != nil {
+		b.releases.Store(tag, release)
 	}
 	return nil
 }
@@ -421,6 +431,9 @@ func (b *Sing) DelNode(tag string) error {
 	err := in.Remove(tag)
 	if err != nil {
 		return fmt.Errorf("delete inbound error: %s", err)
+	}
+	if release, ok := b.releases.LoadAndDelete(tag); ok {
+		release.(func())()
 	}
 	return nil
 }

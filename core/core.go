@@ -26,6 +26,18 @@ func NewCore(c []conf.CoreConfig) (Core, error) {
 	}
 }
 
+// TypeFor is the type of the core that will serve a node ("sing", "xray", "hysteria2"), or "" when
+// none can: the same choice AddNode makes
+func TypeFor(c Core, nodeType string, option *conf.Options) string {
+	if s, ok := c.(*Selector); ok {
+		if picked := s.pick(nodeType, option); picked != nil {
+			return picked.Type()
+		}
+		return ""
+	}
+	return c.Type()
+}
+
 func RegisterCore(t string, f func(c *conf.CoreConfig) (Core, error)) {
 	cores[t] = f
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/InazumaV/V2bX/api/panel"
 	"github.com/InazumaV/V2bX/conf"
 	vCore "github.com/InazumaV/V2bX/core"
+	"github.com/InazumaV/V2bX/module"
 )
 
 type Node struct {
@@ -23,6 +24,8 @@ func (n *Node) Start(nodes []conf.NodeConfig, core vCore.Core) error {
 		if err != nil {
 			return err
 		}
+		coreType := vCore.TypeFor(core, p.NodeType, &nodes[i].Options)
+		p.Announce(coreType, module.For(coreType))
 		// Register controller service
 		n.controllers[i] = NewController(core, p, &nodes[i].Options)
 		err = n.controllers[i].Start()

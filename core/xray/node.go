@@ -26,8 +26,14 @@ func (c *Xray) AddNode(tag string, info *panel.NodeInfo, config *conf.Options) e
 	if err != nil {
 		return fmt.Errorf("build inbound error: %s", err)
 	}
+	// a feature's own way out for the node (ext.go) is in place before the node takes a connection
+	err = c.claim(tag, info)
+	if err != nil {
+		return fmt.Errorf("add node outbound error: %s", err)
+	}
 	err = c.addInbound(inboundConfig)
 	if err != nil {
+		c.release(tag)
 		return fmt.Errorf("add inbound error: %s", err)
 	}
 	outBoundConfig, err := buildOutbound(config, tag)
@@ -76,6 +82,7 @@ func (c *Xray) DelNode(tag string) error {
 	if err != nil {
 		return fmt.Errorf("remove in error: %s", err)
 	}
+	c.release(tag)
 	err = c.removeOutbound(tag)
 	if err != nil {
 		return fmt.Errorf("remove out error: %s", err)
