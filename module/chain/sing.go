@@ -58,7 +58,7 @@ func buildSing(env vsing.Env, tag string, s *spec) (created []string, exit adapt
 	manager := env.Box.Outbound()
 	previous := ""
 	for i, h := range s.Hops {
-		if len(h.Sing) == 0 {
+		if !present(h.Sing) {
 			return created, nil, fmt.Errorf("hop %d (%s) has no sing-box outbound", i+1, h.Name)
 		}
 		var fields map[string]any

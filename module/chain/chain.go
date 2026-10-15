@@ -54,6 +54,12 @@ func of(info *panel.NodeInfo) (*spec, error) {
 	return s, nil
 }
 
+// present is whether a hop has an outbound in that format (the panel leaves out, or sends null for,
+// one the hop's protocol has none in)
+func present(raw json.RawMessage) bool {
+	return len(raw) > 0 && string(raw) != "null"
+}
+
 // hopTag is the outbound tag of the node's n-th hop (from 1)
 func hopTag(tag string, n int) string {
 	return fmt.Sprintf("%s/chain-%d", tag, n)

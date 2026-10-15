@@ -47,7 +47,7 @@ func buildXray(tag string, s *spec) ([]*core.OutboundHandlerConfig, string, erro
 	handlers := make([]*core.OutboundHandlerConfig, 0, len(s.Hops))
 	previous := ""
 	for i, h := range s.Hops {
-		if len(h.Xray) == 0 {
+		if !present(h.Xray) {
 			return nil, "", fmt.Errorf("hop %d (%s) has no xray outbound", i+1, h.Name)
 		}
 		c := &coreConf.OutboundDetourConfig{}

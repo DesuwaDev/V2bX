@@ -38,6 +38,7 @@ func TestXrayChainRefuses(t *testing.T) {
 	for _, broken := range []string{
 		`{"hops":[]}`,
 		`{"hops":[{"name":"no xray","sing":{"type":"direct"}}]}`,
+		`{"hops":[{"name":"null xray","xray":null}]}`,
 		`{"hops":[{"name":"bad","xray":{"protocol":"no-such-protocol"}}]}`,
 	} {
 		handlers, exit := xrayChain{}.Outbounds("node", info(broken))
