@@ -8,6 +8,18 @@ A V2board node server based on multi core, modified from XrayR.
 
 **注意： 本项目需要搭配[修改版V2board](https://github.com/wyx2685/v2board)**
 
+## 本分支
+
+在 [wyx2685/V2bX](https://github.com/wyx2685/V2bX) 之上，原有内核和功能不变，另外：
+
+* **模块**：额外功能放在 `module/` 下，各自一个编译标签，不带标签编译时一行代码都不进程序（见 `module/module.go`）。
+  删一个模块 = 删掉它的目录和 `module/imports/` 里对应的一个文件。
+* **链式代理**（`chain` 模块）：面板把节点设成"入口"后，它的连接依次经过面板指定的其它节点再出去，
+  互联网看到的是最后一个节点的地址。只有入口节点需要本程序，经过的节点照常对接即可。
+  出错时一律拒绝连接，绝不从入口直接出去。
+* 每次请求面板都带上程序版本、内核和已编入的模块（`X-V2bX-*` 请求头），面板据此只要求节点做它能做的事。
+* 多内核时自动选内核的结果固定（原来每次启动可能不同）。
+
 ## 特点
 
 * 永久开源且免费。
@@ -44,11 +56,15 @@ A V2board node server based on multi core, modified from XrayR.
 
 ## 软件安装
 
-### 一键安装
+### 一键安装 / 更新 / 替换官方版
 
 ```
-wget -N https://raw.githubusercontent.com/wyx2685/V2bX-script/master/install.sh && bash install.sh
+bash <(curl -Ls https://raw.githubusercontent.com/DesuwaDev/V2bX/dev_new/script/install.sh)
 ```
+
+装在官方 V2bX（V2bX-script）的同一位置，`/etc/V2bX` 的配置原样保留，之后 `V2bX update` 也从本仓库更新。
+新程序先下载到临时目录、校验 SHA-256、试运行，才替换；原程序留作 `/usr/local/V2bX/V2bX.bak`，
+新程序没能稳定运行时自动换回。
 
 ### 手动安装
 
@@ -56,8 +72,8 @@ wget -N https://raw.githubusercontent.com/wyx2685/V2bX-script/master/install.sh 
 
 ## 构建
 ``` bash
-# 通过-tags选项指定要编译的内核， 可选 xray， sing, hysteria2
-GOEXPERIMENT=jsonv2 go build -v -o build_assets/V2bX -tags "sing xray hysteria2 with_quic with_grpc with_utls with_wireguard with_acme with_gvisor" -trimpath -ldflags "-X 'github.com/InazumaV/V2bX/cmd.version=$version' -s -w -buildid="
+# 通过-tags选项指定要编译的内核， 可选 xray， sing, hysteria2；以及模块，可选 chain
+GOEXPERIMENT=jsonv2 go build -v -o build_assets/V2bX -tags "sing xray hysteria2 with_quic with_grpc with_utls with_wireguard with_acme with_gvisor chain" -trimpath -ldflags "-X 'github.com/InazumaV/V2bX/cmd.version=$version' -s -w -buildid="
 ```
 
 ## 配置文件及详细使用教程
