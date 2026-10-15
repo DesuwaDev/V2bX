@@ -163,12 +163,17 @@ func New(c *conf.ApiConfig) (*Client, error) {
 
 // Announce names, in every request from now on, this build, the core that serves the node and the
 // compiled-in features it has on that core (module/), so the panel asks the node only for what it
-// can do: a feature the panel needs but the node lacks, it handles on its own side.
+// can do: a feature the panel needs but the node lacks, it handles on its own side. And the run of
+// the program and the server it runs on, so the panel tells which nodes go together.
 func (c *Client) Announce(core string, features []string) {
-	c.client.SetHeaders(map[string]string{
+	headers := map[string]string{
 		"X-V2bX-Version":  ProgramVersion,
 		"X-V2bX-Core":     core,
 		"X-V2bX-Features": strings.Join(features, ","),
 		"X-V2bX-Instance": instance,
-	})
+	}
+	if machine != "" {
+		headers["X-V2bX-Machine"] = machine
+	}
+	c.client.SetHeaders(headers)
 }
